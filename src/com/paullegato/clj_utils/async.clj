@@ -1,6 +1,7 @@
 (ns com.paullegato.clj-utils.async
   "Core.async utilities"
-  (:require [clojure.core.async :as async]))
+  (:require [onelog.core :as log]
+            [clojure.core.async :as async]))
 
 
 (defmacro <!!-timeout
