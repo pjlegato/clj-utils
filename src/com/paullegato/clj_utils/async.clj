@@ -1,4 +1,4 @@
-(ns com.paullegato.clj-utils.core
+(ns com.paullegato.clj-utils.async
   "Core.async utilities"
   (:require [clojure.core.async :as async]))
 
