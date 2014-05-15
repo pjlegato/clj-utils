@@ -1,6 +1,7 @@
 (ns com.paullegato.clj-utils.core
   "General Clojure utility functions"
-  (:require [onelog.core :as log]))
+  (:require [onelog.core :as log])
+  (:import [org.joda.time DateTime]))
 
 
 (defn path-to-filename
@@ -118,3 +119,32 @@
   `(set-uncaught-exception-handler!*
     (fn [~'thread ~'throwable]
       ~@forms)))
+
+
+(defn sanitize-times
+  "Given a map, returns a new map with :updated_at and :created_at
+  converted from java.util.GregorianCalendars into Joda DateTimes, if
+  present.
+
+  Not only are DateTimes better all around, but GregorianCalendars 
+  trigger a bug in pprint (http://dev.clojure.org/jira/browse/CLJ-1390)."
+  [a-map]
+  (into a-map (for [[k v] (select-keys a-map [:updated-at :created-at])]
+                [k (DateTime. v)])))
+
+
+(defn to-datetime
+  "Fixed arity creation of a Joda DateTime with the given source date."
+  [source]
+  (DateTime. source))
+
+
+(defn maybe-assoc-apply
+  "Like assoc, but replaces the value of key with the result of applying f to its current value.
+  Returns the original map unaltered if the map does not have the given key."
+  [map key f]
+  (if-not (contains? map key)
+    map
+    (assoc map key (f (get map key)))))
+
+
