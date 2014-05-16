@@ -71,9 +71,11 @@
 
 
 (defn uuid-from-string
-  "Converts the given string into a UUID."
+  "Converts the given string into a UUID if it is not one already."
   [s]
-  (java.util.UUID/fromString s))
+  (if (instance? java.util.UUID s)
+    s
+    (java.util.UUID/fromString s)))
 
 
 (defmacro <!!-timeout
