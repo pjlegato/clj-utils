@@ -70,6 +70,12 @@
   (java.util.UUID/randomUUID))
 
 
+(defn uuid-from-string
+  "Converts the given string into a UUID."
+  [s]
+  (java.util.UUID/fromString s))
+
+
 (defmacro <!!-timeout
   "Like core.async's <!!, but times out and logs a warning after the
   given number of ms have passed if nothing could be read from port during that time."
