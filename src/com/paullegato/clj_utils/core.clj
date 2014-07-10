@@ -70,9 +70,10 @@
   (java.util.UUID/randomUUID))
 
 
-(defn uuid-from-string
+(defn to-uuid
   "Converts the given string into a UUID if it is not one already."
   [s]
+  (assert s)
   (if (instance? java.util.UUID s)
     s
     (java.util.UUID/fromString s)))
