@@ -157,3 +157,31 @@
     (assoc map key (f (get map key)))))
 
 
+
+;;;; Thread manipulation
+
+(defn get-all-threads
+  "Returns an array of information on all running threads.
+   Array elements are instances of java.lang.management.ThreadInfo.
+   From http://tech.puredanger.com/2010/05/30/clojure-thread-tricks/"
+  []
+  (.dumpAllThreads 
+   (java.lang.management.ManagementFactory/getThreadMXBean) false false))
+
+
+(defn get-thread-id
+  "Returns a java.lang.management.ThreadInfo object for the given
+  thread ID, if possible, else nil."
+  [thread-id]
+  (first (filter (fn [t] (= thread-id (.getThreadId t)))
+                 (get-all-threads))))
+
+
+(defn get-thread-name
+  "Returns a java.lang.management.ThreadInfo object for the given
+  thread name, if possible, else nil."
+  [thread-name]
+  (first (filter (fn [t] (= thread-name (.getThreadName t)))
+                  (get-all-threads))))
+
+
