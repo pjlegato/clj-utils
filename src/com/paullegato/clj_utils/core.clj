@@ -4,6 +4,15 @@
   (:import [org.joda.time DateTime]))
 
 
+(defn project-version
+  "Returns the Leiningen project version, or nil if no version can be
+  discovered."
+  []
+  (or (System/getProperty "limefog.version")
+      ;; The above property isn't set when running from a jarfile, so we fall back on:
+      (some-> "project.clj" clojure.java.io/resource slurp read-string (nth 2))))
+
+
 (defn path-to-filename
   "Given a path, returns only the filename portion of it."
   [long-path]
@@ -91,6 +100,9 @@
     val#))
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
 (defn add-shutdown-hook!*
   "Causes the given function to be called when the JVM is shut down,
   such as when the user presses Ctrl-C at the console, the code calls
@@ -106,6 +118,9 @@
   "Runs the given code on a best-effort basis when the JVM is shut down."
   [& forms]
   `(add-shutdown-hook!* (fn [] ~@forms)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (defn set-uncaught-exception-handler!*
@@ -128,6 +143,9 @@
   `(set-uncaught-exception-handler!*
     (fn [~'thread ~'throwable]
       ~@forms)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (defn sanitize-times
@@ -183,5 +201,6 @@
   [thread-name]
   (first (filter (fn [t] (= thread-name (.getThreadName t)))
                   (get-all-threads))))
+
 
 
