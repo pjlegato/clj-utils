@@ -1,6 +1,7 @@
 (ns com.paullegato.clj-utils.web
   "Clojure web utility functions"
-  (:require [onelog.core :as log]))
+  (:require [io.aviso.exception :refer [write-exception format-exception]]
+            [onelog.core :as log]))
 
 (defn wrap-exception
   "Returns a Ring handler that catches any exceptions and returns a 500
@@ -27,5 +28,7 @@
                   (log/error "[web] Wrap-exception got a 500 response; rewriting old body " (:body result) "to 'internal server error'")
                   ring-response)))
             (catch Throwable t
+              (log/error (format-exception t))
               (log/error "[web] Wrap-exception rewriting exception to 500 Internal Server Error...")
               ring-response)))))
+
