@@ -175,8 +175,11 @@
     (assoc map key (f (get map key)))))
 
 
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
 ;;;; Thread manipulation
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn get-all-threads
   "Returns an array of information on all running threads.
@@ -204,3 +207,20 @@
 
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; String parsing
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn maybe-int
+  "Given an integer or a string parseable as an integer, returns the
+  integer. Otherwise, returns nil."
+  [arg]
+  (cond
+   (string? arg)  (try
+                    (Integer/parseInt arg)
+                    (catch Throwable t
+                      nil))
+   (integer? arg) arg
+   :else nil))
