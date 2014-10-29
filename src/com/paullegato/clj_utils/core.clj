@@ -224,3 +224,22 @@
                       nil))
    (integer? arg) arg
    :else nil))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Maps
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn assoc-fn
+  "Returns the map that results from calling fn on the value of the
+  given key.
+
+  For example:
+
+   > (assoc-fn {:foo \"bar\" :baz \"frog\"} :foo count)
+   {:baz \"frog\", :foo 3}
+
+"
+  [map key fn]
+  (assoc map key (fn (get map key))))
