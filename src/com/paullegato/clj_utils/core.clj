@@ -233,7 +233,7 @@
 
 (defn assoc-fn
   "Returns the map that results from calling fn on the value of the
-  given key.
+  given key and associng the result back to the source map.
 
   For example:
 
