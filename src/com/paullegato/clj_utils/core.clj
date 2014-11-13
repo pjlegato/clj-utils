@@ -209,7 +209,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
-;;;; String parsing
+;;;; Strings
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -225,6 +225,16 @@
    (integer? arg) arg
    :else nil))
 
+
+(defn commatize
+  "Returns a string representation of n with commas applied every 3 places.
+   From https://gist.github.com/fogus/1761143"
+  [n]
+  (-> (->> n str seq reverse (partition-all 3) (interpose \,))
+      flatten
+      reverse
+      (#(apply str %))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; Maps
@@ -236,6 +246,9 @@
   given key and associng the result back to the source map.
 
   For example:
+
+   >(assoc-fn {:foo \"123\" :baz \"frog\"} :foo maybe-int)
+   {:baz \"frog\", :foo 123}
 
    > (assoc-fn {:foo \"bar\" :baz \"frog\"} :foo count)
    {:baz \"frog\", :foo 3}
