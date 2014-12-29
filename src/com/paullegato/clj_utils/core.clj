@@ -1,6 +1,9 @@
 (ns com.paullegato.clj-utils.core
   "General Clojure utility functions"
-  (:require [onelog.core :as log])
+  (:require [onelog.core :as log]
+            [clj-time.core :as time]
+            [clj-time.coerce :as coerce]
+            [clj-time.format :as format])
   (:import [org.joda.time DateTime]))
 
 
@@ -256,3 +259,51 @@
 "
   [map key fn]
   (assoc map key (fn (get map key))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Time
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn time-ago-in-words
+  "Modified from https://github.com/bass3m/baseet/blob/master/src-clj/baseet/utils.clj -
+   Displays a time interval in words - '3 seconds', '10 minutes', '6 years', etc."
+  ([from] (time-ago-in-words from (time/now)))
+  ([from to]
+     (cond
+      (or (nil? from)
+          (nil? to))  "never"
+      :else
+      (let [;; from (format/parse
+            ;;              (format/formatter "EEE MMM dd HH:mm:ss Z yyyy")
+            ;;              from)
+            from (coerce/to-date-time from)
+            interval   (time/interval from to)
+            seconds    (time/in-seconds interval)
+            time-interval-map (zipmap [time/in-secs  time/in-minutes
+                                       time/in-hours time/in-days
+                                       time/in-weeks time/in-months
+                                       time/in-years]
+                                      ["second" "minute" "hour" "day"
+                                       "week" "month" "year"])]
+        (if (< 1 seconds)
+          "just now"
+          (loop [interval-map time-interval-map]
+            (if (nil? (first interval-map))
+              interval
+              (let [time-span ((key (first interval-map)) interval)]
+                (if (pos? time-span)
+                  (let [time-str (val (first interval-map))]
+                    (clojure.string/join " " [time-span
+                                              (cond-> time-str
+                                                      (> time-span 1) (str "s"))]))
+                  (recur (next interval-map)))))))))))
+
+
+(def rfc822-format (format/formatters :rfc822))
+(defn rfc822 [date]
+  (some->> date
+          coerce/to-date-time
+          (format/unparse rfc822-format)))
+
