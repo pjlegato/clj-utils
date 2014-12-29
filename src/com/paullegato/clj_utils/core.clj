@@ -266,10 +266,10 @@
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn time-ago-in-words
+(defn time-interval-in-words
   "Modified from https://github.com/bass3m/baseet/blob/master/src-clj/baseet/utils.clj -
    Displays a time interval in words - '3 seconds', '10 minutes', '6 years', etc."
-  ([from] (time-ago-in-words from (time/now)))
+  ([from] (time-interval-in-words from (time/now)))
   ([from to]
      (cond
       (or (nil? from)
@@ -281,13 +281,14 @@
             from (coerce/to-date-time from)
             interval   (time/interval from to)
             seconds    (time/in-seconds interval)
-            time-interval-map (zipmap [time/in-secs  time/in-minutes
-                                       time/in-hours time/in-days
-                                       time/in-weeks time/in-months
+            time-interval-map (zipmap [time/in-seconds  time/in-minutes
+                                       time/in-hours    time/in-days
+                                       time/in-weeks    time/in-months
                                        time/in-years]
                                       ["second" "minute" "hour" "day"
                                        "week" "month" "year"])]
-        (if (< 1 seconds)
+        (log/warn+ "seconds are " seconds)
+        (if (< seconds 1)
           "just now"
           (loop [interval-map time-interval-map]
             (if (nil? (first interval-map))
@@ -299,6 +300,15 @@
                                               (cond-> time-str
                                                       (> time-span 1) (str "s"))]))
                   (recur (next interval-map)))))))))))
+
+
+(defn time-ago-in-words
+  ([from] (time-ago-in-words from (time/now)))
+  ([from to]
+     (let [words (time-interval-in-words from to)]
+       (if (= words "just now")
+         words
+         (str words " ago")))))
 
 
 (def rfc822-format (format/formatters :rfc822))
