@@ -287,7 +287,6 @@
                                        time/in-years]
                                       ["second" "minute" "hour" "day"
                                        "week" "month" "year"])]
-        (log/warn+ "seconds are " seconds)
         (if (< seconds 1)
           "just now"
           (loop [interval-map time-interval-map]
