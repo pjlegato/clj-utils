@@ -305,7 +305,8 @@
   ([from] (time-ago-in-words from (time/now)))
   ([from to]
      (let [words (time-interval-in-words from to)]
-       (if (= words "just now")
+       (if (or (= words "just now")
+               (= words "never"))
          words
          (str words " ago")))))
 
