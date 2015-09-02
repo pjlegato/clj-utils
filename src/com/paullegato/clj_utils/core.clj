@@ -178,6 +178,13 @@
     (assoc map key (f (get map key)))))
 
 
+(defn assoc-if
+  "Like assoc, but only associates if value is true.
+
+  https://stackoverflow.com/questions/16356888/assoc-if-in-clojure"
+  [m key value]
+  (if value (assoc m key value) m))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; Thread manipulation
