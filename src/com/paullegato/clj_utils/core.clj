@@ -288,12 +288,12 @@
             from (coerce/to-date-time from)
             interval   (time/interval from to)
             seconds    (time/in-seconds interval)
-            time-interval-map (zipmap [time/in-seconds  time/in-minutes
-                                       time/in-hours    time/in-days
-                                       time/in-weeks    time/in-months
-                                       time/in-years]
-                                      ["second" "minute" "hour" "day"
-                                       "week" "month" "year"])]
+            time-interval-map (reverse (zipmap [time/in-seconds  time/in-minutes
+                                                time/in-hours    time/in-days
+                                                time/in-weeks    time/in-months
+                                                time/in-years]
+                                               ["second" "minute" "hour" "day"
+                                                "week" "month" "year"]))]
         (if (< seconds 1)
           "just now"
           (loop [interval-map time-interval-map]
