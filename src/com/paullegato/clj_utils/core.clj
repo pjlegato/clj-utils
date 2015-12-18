@@ -1,6 +1,7 @@
 (ns com.paullegato.clj-utils.core
-  "General Clojure utility functions"
+  "General Clojure utility functions."
   (:require [onelog.core :as log]
+            [clansi.core   :as ansi]
             [clj-time.core :as time]
             [clj-time.coerce :as coerce]
             [clj-time.format :as format])
@@ -148,42 +149,7 @@
       ~@forms)))
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-(defn sanitize-times
-  "Given a map, returns a new map with :updated_at and :created_at
-  converted from java.util.GregorianCalendars into Joda DateTimes, if
-  present.
-
-  Not only are DateTimes better all around, but GregorianCalendars 
-  trigger a bug in pprint (http://dev.clojure.org/jira/browse/CLJ-1390)."
-  [a-map]
-  (into a-map (for [[k v] (select-keys a-map [:updated-at :created-at])]
-                [k (DateTime. v)])))
-
-
-(defn to-datetime
-  "Fixed arity creation of a Joda DateTime with the given source date."
-  [source]
-  (DateTime. source))
-
-
-(defn maybe-assoc-apply
-  "Like assoc, but replaces the value of key with the result of applying f to its current value.
-  Returns the original map unaltered if the map does not have the given key."
-  [map key f]
-  (if-not (contains? map key)
-    map
-    (assoc map key (f (get map key)))))
-
-
-(defn assoc-if
-  "Like assoc, but only associates if value is true.
-
-  https://stackoverflow.com/questions/16356888/assoc-if-in-clojure"
-  [m key value]
-  (if value (assoc m key value) m))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
@@ -267,11 +233,60 @@
   [map key fn]
   (assoc map key (fn (get map key))))
 
+
+(defn maybe-assoc-apply
+  "Like assoc, but replaces the value of key with the result of applying f to its current value.
+  Returns the original map unaltered if the map does not have the given key."
+  [map key f]
+  (if-not (contains? map key)
+    map
+    (assoc map key (f (get map key)))))
+
+
+(defn assoc-if
+  "Like assoc, but only associates if value is true.
+
+  https://stackoverflow.com/questions/16356888/assoc-if-in-clojure"
+  [m key value]
+  (if value (assoc m key value) m))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
-;;;; Time
+;;;; Date & Time
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def iso8601 (format/formatters :date-time-no-ms))
+(def iso8601-ms (format/formatters :date-time))
+
+(defn iso
+  "Given a date string, attempts to parse it as an ISO8601 date. Returns
+  a JODA DateTime object.
+
+   Accepts ISO8601 either with or without the milliseconds field"
+  [date]
+  (try
+    (format/parse iso8601 date)
+    (catch java.lang.IllegalArgumentException t
+      (format/parse iso8601-ms date))))
+
+
+(defn sanitize-times
+  "Given a map, returns a new map with :updated_at and :created_at
+  converted from java.util.GregorianCalendars into Joda DateTimes, if
+  present.
+
+  Not only are DateTimes better all around, but GregorianCalendars 
+  trigger a bug in pprint (http://dev.clojure.org/jira/browse/CLJ-1390)."
+  [a-map]
+  (into a-map (for [[k v] (select-keys a-map [:updated-at :created-at])]
+                [k (DateTime. v)])))
+
+
+(defn to-datetime
+  "Fixed arity creation of a Joda DateTime with the given source date."
+  [source]
+  (DateTime. source))
 
 (defn time-interval-in-words
   "Modified from https://github.com/bass3m/baseet/blob/master/src-clj/baseet/utils.clj -
@@ -324,3 +339,102 @@
           coerce/to-date-time
           (format/unparse rfc822-format)))
 
+
+(defn time-fn*
+  "Runs the given function with wall clock time profiling. Returns a map
+  with the following fields:
+
+    :result - Normally, the return value of the function. If the function throws an exception, the result is the exception.
+    :start-time - org.joda.time.DateTime when execution began.
+    :end-time   - org.joda.time.DateTime when execution ended.
+    :duration   - org.joda.time.Interval of how long execution took
+    :duration-in-words - String representing how long execution took
+"
+  [fn]
+  (assert fn)
+  (let [start-time (time/now)
+        result     (try
+                     (fn)
+                     (catch Throwable t
+                       t))
+        end-time   (time/now)]
+    {:result result
+     :start-time start-time
+     :end-time   end-time
+     :duration   (time/interval start-time end-time)
+     :duration-in-words  (time-interval-in-words start-time end-time)
+     }))
+
+;;;
+;;;
+;;; Exceptions
+;;;
+;;;
+
+(defmacro try-or-nil
+  "Runs the given code. If it throws anything, returns nil. Otherwise,
+  returns whatever the code returns."
+  [& forms]
+  `(try
+     ~@forms
+     (catch Throwable t# nil)))
+
+(defn throwable?
+  [obj]
+  (isa? (class obj) Throwable))
+
+;;;
+;;;
+;;; Printing
+;;;
+;;;
+
+(defn color
+  "ANSI colorizes the given data and returns it.
+
+   The first argument is a either a color specifier as per clansi.core, or a collection
+   of color specifiers. For example, :white or [:bright :white] are valid
+
+  Subsequent arguments are concatenated into a string.
+
+   Examples:
+
+     (color [:bright :red] \"foo\")
+     (color :red \"foo\")
+"
+  [colors & data]
+  (let [colors (if (coll? colors)
+                 colors
+                 (vector colors))]
+    (apply ansi/style (apply str data) colors)))
+
+
+(defn cprintln
+  "Prints to STDOUT in ANSI color. The first argument is a color specification. Subsequent arguments are strings to print.
+
+   Examples:
+
+    (cprintln :green \"This prints in green\")
+    (cprintln [:bright :green]
+              \"This prints in bright green.\"
+              \" This also prints in bright green.\")
+    (cprintln nil \"This prints in your terminal's default color.\")
+
+  Note that, unlike println, cprintln does not automatically intersperse
+  spaces between the elements of the data argument They are concatenated
+  directly."
+  [colors & data]
+  (println (apply color colors data)))
+
+
+(defn cprint
+  "Prints to STDOUT in ANSI color. Like cprintln, but without an automatic newline at the end."
+  [colors & data]
+  (print (apply color colors data)))
+
+
+(defmacro pprint-str 
+  "Like pprint, but returns a nicely formatted string instead of
+  printing."
+  [forms]
+  `(with-out-str (clojure.pprint/pprint ~forms)))
