@@ -250,6 +250,12 @@
   [m key value]
   (if value (assoc m key value) m))
 
+
+(defn assoc-in-if
+  "Like assoc-in, but only associates if value is true."
+  [m keys value]
+  (if value (assoc-in m keys value) m))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; Date & Time
