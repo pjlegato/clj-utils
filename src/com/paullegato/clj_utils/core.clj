@@ -316,7 +316,7 @@
                                                ["second" "minute" "hour" "day"
                                                 "week" "month" "year"]))]
         (if (< seconds 1)
-          "just now"
+          "less than a second"
           (loop [interval-map time-interval-map]
             (if (nil? (first interval-map))
               interval
