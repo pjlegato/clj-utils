@@ -73,6 +73,31 @@
                  t#))))))
 
 
+(defmacro with-default-timeout
+  "Runs the given code, aborting it and returning the default after ms
+  milliseconds if the forms have not finished executing yet."
+  [default ms & forms]
+  `(let [f# (future ~@forms)]
+     (try
+       (.get ^java.util.concurrent.Future f# ~ms java.util.concurrent.TimeUnit/MILLISECONDS)
+       (catch java.util.concurrent.TimeoutException t#
+         (log/info "[with-default-timeout] Returning default, because we timed out.")
+         ~default))))
+
+
+(defmacro with-nuclear-default-timeout
+  "Runs the given code, aborting it and returning the default after ms
+  milliseconds if the forms have not finished executing yet, or if the
+  code throws any exception."
+  [default ms & forms]
+  `(let [f# (future ~@forms)]
+     (try
+       (.get ^java.util.concurrent.Future f# ~ms java.util.concurrent.TimeUnit/MILLISECONDS)
+       (catch Throwable t#
+         (log/error "[with-nuclear-default-timeout] Returning default, because we got exception:" (log/throwable t#))
+         ~default))))
+
+
 (defn has-keys? [m keys]
   (every? (partial contains? m) keys))
 
