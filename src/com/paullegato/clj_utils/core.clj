@@ -8,6 +8,12 @@
   (:import [org.joda.time DateTime]))
 
 
+;;;
+;;;
+;;; Project-level utilities
+;;;
+;;;
+
 (defn project-version
   "Returns the Leiningen project version, or nil if no version can be
   discovered."
@@ -22,6 +28,12 @@
   [long-path]
   (last  (clojure.string/split long-path #"/")))
 
+
+;;;
+;;;
+;;; Timing and profiling utilities
+;;;
+;;;
 
 (defn- milli-time
   "Returns System/nanoTime converted to milliseconds."
@@ -98,8 +110,23 @@
          ~default))))
 
 
-(defn has-keys? [m keys]
-  (every? (partial contains? m) keys))
+(defmacro <!!-timeout
+  "Like core.async's <!!, but times out and logs a warning after the
+  given number of ms have passed if nothing could be read from port during that time."
+  [port ms]
+  `(let [timeout-port#  (async/timeout ~ms)
+         [val# port#]   (alts!! [~port timeout-port#])]
+    (if (= port# timeout-port#)
+      (log/warn+ (log/color [:bright :yellow]
+                            "<!!-timeout timed out while trying to read " '~port "!")))
+    val#))
+
+
+;;;
+;;;
+;;; UUIDs
+;;;
+;;;
 
 
 (defn uuid
@@ -117,16 +144,6 @@
     (java.util.UUID/fromString s)))
 
 
-(defmacro <!!-timeout
-  "Like core.async's <!!, but times out and logs a warning after the
-  given number of ms have passed if nothing could be read from port during that time."
-  [port ms]
-  `(let [timeout-port#  (async/timeout ~ms)
-         [val# port#]   (alts!! [~port timeout-port#])]
-    (if (= port# timeout-port#)
-      (log/warn+ (log/color [:bright :yellow]
-                            "<!!-timeout timed out while trying to read " '~port "!")))
-    val#))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -241,6 +258,9 @@
 ;;;; Maps
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn has-keys? [m keys]
+  (every? (partial contains? m) keys))
 
 (defn assoc-fn
   "Returns the map that results from calling fn on the value of the
@@ -371,6 +391,22 @@
           (format/unparse rfc822-format)))
 
 
+(def iso-dow
+  {1 "Monday"
+   2 "Tuesday"
+   3 "Wednesday"
+   4 "Thursday"
+   5 "Friday"
+   6 "Saturday"
+   7 "Sunday"})
+
+(defn iso-dow-in-words
+  "Given an ISO day of the week integer from 1 to 7, returns the
+  string name of that day of the week."
+  [day]
+  (get iso-dow day))
+
+
 (defn time-fn*
   "Runs the given function with wall clock time profiling. Returns a map
   with the following fields:
@@ -469,3 +505,21 @@
   printing."
   [forms]
   `(with-out-str (clojure.pprint/pprint ~forms)))
+
+
+;;;
+;;;
+;;; Language utilities
+;;;
+;;;
+
+(defmacro let-or
+  "The inverse of if-let: The conditions are executed backwards. If binding-forms are successfully bound, executes or-forms, else let-forms.
+
+  This is meant to be used for readability in cases where the negative
+  clause is much shorter than the positive clause.
+"
+  [binding-forms let-forms or-forms]
+  `(if-let ~binding-forms
+     (do ~or-forms)
+     (do ~let-forms)))
