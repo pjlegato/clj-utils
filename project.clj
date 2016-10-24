@@ -1,4 +1,4 @@
-(defproject org.clojars.pjlegato/clj-utils "0.4.0-SNAPSHOT"
+(defproject org.clojars.pjlegato/clj-utils "0.4.1-SNAPSHOT"
   :description "General purpose Clojure utilities"
   :url "https://github.com/pjlegato/clj-utils"
   :license {:name "Eclipse Public License"
