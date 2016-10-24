@@ -1,7 +1,26 @@
 (ns com.paullegato.clj-utils.core
-  "General Clojure utility functions"
-  (:require [onelog.core :as log])
+  "General Clojure utility functions."
+  (:require [onelog.core :as log]
+            [clansi.core   :as ansi]
+            [clj-time.core :as time]
+            [clj-time.coerce :as coerce]
+            [clj-time.format :as format])
   (:import [org.joda.time DateTime]))
+
+
+;;;
+;;;
+;;; Project-level utilities
+;;;
+;;;
+
+(defn project-version
+  "Returns the Leiningen project version, or nil if no version can be
+  discovered."
+  []
+  (or (System/getProperty "limefog.version")
+      ;; The above property isn't set when running from a jarfile, so we fall back on:
+      (some-> "project.clj" clojure.java.io/resource slurp read-string (nth 2))))
 
 
 (defn path-to-filename
@@ -9,6 +28,12 @@
   [long-path]
   (last  (clojure.string/split long-path #"/")))
 
+
+;;;
+;;;
+;;; Timing and profiling utilities
+;;;
+;;;
 
 (defn- milli-time
   "Returns System/nanoTime converted to milliseconds."
@@ -60,8 +85,48 @@
                  t#))))))
 
 
-(defn has-keys? [m keys]
-  (every? (partial contains? m) keys))
+(defmacro with-default-timeout
+  "Runs the given code, aborting it and returning the default after ms
+  milliseconds if the forms have not finished executing yet."
+  [default ms & forms]
+  `(let [f# (future ~@forms)]
+     (try
+       (.get ^java.util.concurrent.Future f# ~ms java.util.concurrent.TimeUnit/MILLISECONDS)
+       (catch java.util.concurrent.TimeoutException t#
+         (log/info "[with-default-timeout] Returning default, because we timed out.")
+         ~default))))
+
+
+(defmacro with-nuclear-default-timeout
+  "Runs the given code, aborting it and returning the default after ms
+  milliseconds if the forms have not finished executing yet, or if the
+  code throws any exception."
+  [default ms & forms]
+  `(let [f# (future ~@forms)]
+     (try
+       (.get ^java.util.concurrent.Future f# ~ms java.util.concurrent.TimeUnit/MILLISECONDS)
+       (catch Throwable t#
+         (log/error "[with-nuclear-default-timeout] Returning default, because we got exception:" (log/throwable t#))
+         ~default))))
+
+
+(defmacro <!!-timeout
+  "Like core.async's <!!, but times out and logs a warning after the
+  given number of ms have passed if nothing could be read from port during that time."
+  [port ms]
+  `(let [timeout-port#  (async/timeout ~ms)
+         [val# port#]   (alts!! [~port timeout-port#])]
+    (if (= port# timeout-port#)
+      (log/warn+ (log/color [:bright :yellow]
+                            "<!!-timeout timed out while trying to read " '~port "!")))
+    val#))
+
+
+;;;
+;;;
+;;; UUIDs
+;;;
+;;;
 
 
 (defn uuid
@@ -79,16 +144,9 @@
     (java.util.UUID/fromString s)))
 
 
-(defmacro <!!-timeout
-  "Like core.async's <!!, but times out and logs a warning after the
-  given number of ms have passed if nothing could be read from port during that time."
-  [port ms]
-  `(let [timeout-port#  (async/timeout ~ms)
-         [val# port#]   (alts!! [~port timeout-port#])]
-    (if (= port# timeout-port#)
-      (log/warn+ (log/color [:bright :yellow]
-                            "<!!-timeout timed out while trying to read " '~port "!")))
-    val#))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (defn add-shutdown-hook!*
@@ -106,6 +164,9 @@
   "Runs the given code on a best-effort basis when the JVM is shut down."
   [& forms]
   `(add-shutdown-hook!* (fn [] ~@forms)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (defn set-uncaught-exception-handler!*
@@ -130,35 +191,13 @@
       ~@forms)))
 
 
-(defn sanitize-times
-  "Given a map, returns a new map with :updated_at and :created_at
-  converted from java.util.GregorianCalendars into Joda DateTimes, if
-  present.
-
-  Not only are DateTimes better all around, but GregorianCalendars 
-  trigger a bug in pprint (http://dev.clojure.org/jira/browse/CLJ-1390)."
-  [a-map]
-  (into a-map (for [[k v] (select-keys a-map [:updated-at :created-at])]
-                [k (DateTime. v)])))
 
 
-(defn to-datetime
-  "Fixed arity creation of a Joda DateTime with the given source date."
-  [source]
-  (DateTime. source))
-
-
-(defn maybe-assoc-apply
-  "Like assoc, but replaces the value of key with the result of applying f to its current value.
-  Returns the original map unaltered if the map does not have the given key."
-  [map key f]
-  (if-not (contains? map key)
-    map
-    (assoc map key (f (get map key)))))
-
-
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
 ;;;; Thread manipulation
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn get-all-threads
   "Returns an array of information on all running threads.
@@ -185,3 +224,302 @@
                   (get-all-threads))))
 
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Strings
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn maybe-int
+  "Given an integer or a string parseable as an integer, returns the
+  integer. Otherwise, returns nil."
+  [arg]
+  (cond
+   (string? arg)  (try
+                    (Integer/parseInt arg)
+                    (catch Throwable t
+                      nil))
+   (integer? arg) arg
+   :else nil))
+
+
+(defn commatize
+  "Returns a string representation of n with commas applied every 3 places.
+   From https://gist.github.com/fogus/1761143"
+  [n]
+  (-> (->> n str seq reverse (partition-all 3) (interpose \,))
+      flatten
+      reverse
+      (#(apply str %))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Maps
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn has-keys? [m keys]
+  (every? (partial contains? m) keys))
+
+(defn assoc-fn
+  "Returns the map that results from calling fn on the value of the
+  given key and associng the result back to the source map.
+
+  For example:
+
+   >(assoc-fn {:foo \"123\" :baz \"frog\"} :foo maybe-int)
+   {:baz \"frog\", :foo 123}
+
+   > (assoc-fn {:foo \"bar\" :baz \"frog\"} :foo count)
+   {:baz \"frog\", :foo 3}
+
+"
+  [map key fn]
+  (assoc map key (fn (get map key))))
+
+
+(defn maybe-assoc-apply
+  "Like assoc, but replaces the value of key with the result of applying f to its current value.
+  Returns the original map unaltered if the map does not have the given key."
+  [map key f]
+  (if-not (contains? map key)
+    map
+    (assoc map key (f (get map key)))))
+
+
+(defn assoc-if
+  "Like assoc, but only associates if value is true.
+
+  https://stackoverflow.com/questions/16356888/assoc-if-in-clojure"
+  [m key value]
+  (if value (assoc m key value) m))
+
+
+(defn assoc-in-if
+  "Like assoc-in, but only associates if value is true."
+  [m keys value]
+  (if value (assoc-in m keys value) m))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Date & Time
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def iso8601 (format/formatters :date-time-no-ms))
+(def iso8601-ms (format/formatters :date-time))
+
+(defn iso
+  "Given a date string, attempts to parse it as an ISO8601 date. Returns
+  a JODA DateTime object.
+
+   Accepts ISO8601 either with or without the milliseconds field"
+  [date]
+  (try
+    (format/parse iso8601 date)
+    (catch java.lang.IllegalArgumentException t
+      (format/parse iso8601-ms date))))
+
+
+(defn sanitize-times
+  "Given a map, returns a new map with :updated_at and :created_at
+  converted from java.util.GregorianCalendars into Joda DateTimes, if
+  present.
+
+  Not only are DateTimes better all around, but GregorianCalendars 
+  trigger a bug in pprint (http://dev.clojure.org/jira/browse/CLJ-1390)."
+  [a-map]
+  (into a-map (for [[k v] (select-keys a-map [:updated-at :created-at])]
+                [k (DateTime. v)])))
+
+
+(defn to-datetime
+  "Fixed arity creation of a Joda DateTime with the given source date."
+  [source]
+  (DateTime. source))
+
+(defn time-interval-in-words
+  "Modified from https://github.com/bass3m/baseet/blob/master/src-clj/baseet/utils.clj -
+   Displays a time interval in words - '3 seconds', '10 minutes', '6 years', etc."
+  ([from] (time-interval-in-words from (time/now)))
+  ([from to]
+     (cond
+      (or (nil? from)
+          (nil? to))  "never"
+      :else
+      (let [;; from (format/parse
+            ;;              (format/formatter "EEE MMM dd HH:mm:ss Z yyyy")
+            ;;              from)
+            from (coerce/to-date-time from)
+            interval   (time/interval from to)
+            seconds    (time/in-seconds interval)
+            time-interval-map (reverse (zipmap [time/in-seconds  time/in-minutes
+                                                time/in-hours    time/in-days
+                                                time/in-weeks    time/in-months
+                                                time/in-years]
+                                               ["second" "minute" "hour" "day"
+                                                "week" "month" "year"]))]
+        (if (< seconds 1)
+          "less than a second"
+          (loop [interval-map time-interval-map]
+            (if (nil? (first interval-map))
+              interval
+              (let [time-span ((key (first interval-map)) interval)]
+                (if (pos? time-span)
+                  (let [time-str (val (first interval-map))]
+                    (clojure.string/join " " [time-span
+                                              (cond-> time-str
+                                                      (> time-span 1) (str "s"))]))
+                  (recur (next interval-map)))))))))))
+
+
+(defn time-ago-in-words
+  ([from] (time-ago-in-words from (time/now)))
+  ([from to]
+     (let [words (time-interval-in-words from to)]
+       (if (or (= words "just now")
+               (= words "never"))
+         words
+         (str words " ago")))))
+
+
+(def rfc822-format (format/formatters :rfc822))
+(defn rfc822 [date]
+  (some->> date
+          coerce/to-date-time
+          (format/unparse rfc822-format)))
+
+
+(def iso-dow
+  {1 "Monday"
+   2 "Tuesday"
+   3 "Wednesday"
+   4 "Thursday"
+   5 "Friday"
+   6 "Saturday"
+   7 "Sunday"})
+
+(defn iso-dow-in-words
+  "Given an ISO day of the week integer from 1 to 7, returns the
+  string name of that day of the week."
+  [day]
+  (get iso-dow day))
+
+
+(defn time-fn*
+  "Runs the given function with wall clock time profiling. Returns a map
+  with the following fields:
+
+    :result - Normally, the return value of the function. If the function throws an exception, the result is the exception.
+    :start-time - org.joda.time.DateTime when execution began.
+    :end-time   - org.joda.time.DateTime when execution ended.
+    :duration   - org.joda.time.Interval of how long execution took
+    :duration-in-words - String representing how long execution took
+"
+  [fn]
+  (assert fn)
+  (let [start-time (time/now)
+        result     (try
+                     (fn)
+                     (catch Throwable t
+                       t))
+        end-time   (time/now)]
+    {:result result
+     :start-time start-time
+     :end-time   end-time
+     :duration   (time/interval start-time end-time)
+     :duration-in-words  (time-interval-in-words start-time end-time)
+     }))
+
+;;;
+;;;
+;;; Exceptions
+;;;
+;;;
+
+(defmacro try-or-nil
+  "Runs the given code. If it throws anything, returns nil. Otherwise,
+  returns whatever the code returns."
+  [& forms]
+  `(try
+     ~@forms
+     (catch Throwable t# nil)))
+
+(defn throwable?
+  [obj]
+  (isa? (class obj) Throwable))
+
+;;;
+;;;
+;;; Printing
+;;;
+;;;
+
+(defn color
+  "ANSI colorizes the given data and returns it.
+
+   The first argument is a either a color specifier as per clansi.core, or a collection
+   of color specifiers. For example, :white or [:bright :white] are valid
+
+  Subsequent arguments are concatenated into a string.
+
+   Examples:
+
+     (color [:bright :red] \"foo\")
+     (color :red \"foo\")
+"
+  [colors & data]
+  (let [colors (if (coll? colors)
+                 colors
+                 (vector colors))]
+    (apply ansi/style (apply str data) colors)))
+
+
+(defn cprintln
+  "Prints to STDOUT in ANSI color. The first argument is a color specification. Subsequent arguments are strings to print.
+
+   Examples:
+
+    (cprintln :green \"This prints in green\")
+    (cprintln [:bright :green]
+              \"This prints in bright green.\"
+              \" This also prints in bright green.\")
+    (cprintln nil \"This prints in your terminal's default color.\")
+
+  Note that, unlike println, cprintln does not automatically intersperse
+  spaces between the elements of the data argument They are concatenated
+  directly."
+  [colors & data]
+  (println (apply color colors data)))
+
+
+(defn cprint
+  "Prints to STDOUT in ANSI color. Like cprintln, but without an automatic newline at the end."
+  [colors & data]
+  (print (apply color colors data)))
+
+
+(defmacro pprint-str 
+  "Like pprint, but returns a nicely formatted string instead of
+  printing."
+  [forms]
+  `(with-out-str (clojure.pprint/pprint ~forms)))
+
+
+;;;
+;;;
+;;; Language utilities
+;;;
+;;;
+
+(defmacro let-or
+  "The inverse of if-let: The conditions are executed backwards. If binding-forms are successfully bound, executes or-forms, else let-forms.
+
+  This is meant to be used for readability in cases where the negative
+  clause is much shorter than the positive clause.
+"
+  [binding-forms let-forms or-forms]
+  `(if-let ~binding-forms
+     (do ~or-forms)
+     (do ~let-forms)))
