@@ -35,7 +35,7 @@
 ;;;
 ;;;
 
-(defn- milli-time
+(defn milli-time
   "Returns System/nanoTime converted to milliseconds."
   []
   (long (/ (System/nanoTime) 1000000)))
